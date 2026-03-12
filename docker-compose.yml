@@ -23,7 +23,9 @@ services:
       retries: 5
 
   # --- Monero Daemon (monerod) ---
+  # Only starts if "local_node" profile is active
   monerod:
+    profiles: ["local_node"]
     build: ./build/monero
     container_name: monerod
     restart: unless-stopped
@@ -36,10 +38,10 @@ services:
       - MONERO_PRUNE=${MONERO_PRUNE}
     volumes:
       - ${MONERO_DATA_DIR}:/root/.bitmonero
-      - /dev/hugepages:/dev/hugepages 
+      - /dev/hugepages:/dev/hugepages
       - ./build/monero/bitmonero.conf.template:/root/bitmonero.conf.template:ro
     ports:
-      - "18081:18081" 
+      - "18081:18081"
     networks:
       mining_net:
         ipv4_address: 172.28.0.26
@@ -93,20 +95,22 @@ services:
     container_name: p2pool
     restart: unless-stopped
     logging: *default-logging
-    privileged: true 
+    privileged: true
     volumes:
       - ${P2POOL_DATA_DIR}:/root
-      - ${P2POOL_DATA_DIR}/stats:/stats 
+      - ${P2POOL_DATA_DIR}/stats:/stats
       - /dev/hugepages:/dev/hugepages
+      - /var/run/dbus:/var/run/dbus:ro
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket:ro
     command:
       - --host
-      - 172.28.0.26
+      - ${MONERO_NODE_HOST} # Dynamic Host
       - --rpc-port
-      - "18081"
+      - "${MONERO_RPC_PORT}"
       - --rpc-login
-      - "${MONERO_NODE_USERNAME}:${MONERO_NODE_PASSWORD}"
+      - "${MONERO_NODE_USERNAME}:${MONERO_NODE_PASSWORD}" # Only used if auth required
       - --zmq-port
-      - "18083"
+      - "${MONERO_ZMQ_PORT}"
       - --wallet
       - ${MONERO_WALLET_ADDRESS} 
       - --merge-mine
@@ -126,8 +130,7 @@ services:
       mining_net:
         ipv4_address: 172.28.0.28
     depends_on:
-      monerod:
-        condition: service_healthy
+      # monerod dependency removed to allow remote node operation
       tari:
         condition: service_healthy
 
@@ -138,7 +141,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
     ports:
-      - "3333:3333" 
+      - "3333:3333"
     environment:
       - PROXY_API_PORT=${PROXY_API_PORT}
       - PROXY_AUTH_TOKEN=${PROXY_AUTH_TOKEN}
@@ -173,15 +176,16 @@ services:
       container_name: dashboard
       restart: unless-stopped
       logging: *default-logging
-      network_mode: "host" 
+      network_mode: "host"
       volumes:
-        - ${P2POOL_DATA_DIR}/stats:/app/stats:ro 
+        - ${P2POOL_DATA_DIR}/stats:/app/stats:ro
         - ${DASHBOARD_DATA_DIR}:/data
         - /var/run/dbus:/var/run/dbus:ro
         - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
       environment:
       - HOST_IP=${HOST_IP:-127.0.0.1}
       - TZ=America/Chicago
+      - MONERO_NODE_HOST=${MONERO_NODE_HOST:-172.28.0.26}
       - P2POOL_URL=${P2POOL_URL}
       - MONERO_WALLET_ADDRESS=${MONERO_WALLET_ADDRESS}
       - XVB_ENABLED=${XVB_ENABLED}
@@ -199,10 +203,10 @@ services:
     container_name: docker-proxy
     restart: unless-stopped
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro 
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
-      - CONTAINERS=1 
-      - LOGS=1       
+      - CONTAINERS=1
+      - LOGS=1
     networks:
       mining_net:
         ipv4_address: 172.28.0.30
