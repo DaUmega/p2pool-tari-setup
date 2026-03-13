@@ -371,6 +371,12 @@ finalize_env() {
         P2POOL_PORT="37890"
     fi
 
+    # Light Mode
+    LIGHT_MODE=$(jq -r '.p2pool.light_mode // false' "$CONFIG_FILE")
+    if [ "$LIGHT_MODE" == "true" ]; then
+        P2POOL_FLAGS="$P2POOL_FLAGS --light-mode"
+    fi
+
     # XvB Config
     XVB_ENABLED=$(jq -r 'if .xvb.enabled != null then .xvb.enabled elif .xmrig_proxy.enabled != null then .xmrig_proxy.enabled else "true" end' "$CONFIG_FILE")
     XVB_POOL_URL=$(jq -r '.xvb.url // .xmrig_proxy.url // empty' "$CONFIG_FILE")
